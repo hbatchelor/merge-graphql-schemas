@@ -1,13 +1,17 @@
-import { Kind } from 'graphql';
+import { Kind } from "graphql";
 
 const hasDefinitionWithName = (nodes, name) =>
   nodes.findIndex(node => node.name.value === name) !== -1;
 
-const isObjectTypeDefinition = def => (
+const isObjectTypeDefinition = def =>
   def.kind === Kind.OBJECT_TYPE_DEFINITION ||
-  def.kind === Kind.INPUT_OBJECT_TYPE_DEFINITION
-);
+  def.kind === Kind.INPUT_OBJECT_TYPE_DEFINITION ||
+  def.kind === Kind.ENUM_TYPE_DEFINITION;
 
 const isObjectSchemaDefinition = def => def.kind === Kind.SCHEMA_DEFINITION;
 
-export { hasDefinitionWithName, isObjectTypeDefinition, isObjectSchemaDefinition };
+export {
+  hasDefinitionWithName,
+  isObjectTypeDefinition,
+  isObjectSchemaDefinition
+};

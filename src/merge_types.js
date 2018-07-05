@@ -1,30 +1,33 @@
 // NOTE: Currently using a slightly modified print instead of the exported graphql version.
-import { parse /* ,print */ } from 'graphql';
-import { getDescription } from 'graphql/utilities/buildASTSchema';
+import { parse /* ,print */ } from "graphql";
+import { getDescription } from "graphql/utilities/buildASTSchema";
 
 // TODO: Refactor code and switch to using print from graphql directly.
-import print from './utilities/astPrinter';
-import { makeSchema, mergeableTypes } from './utilities/makeSchema';
-import { isObjectTypeDefinition, isObjectSchemaDefinition } from './utilities/astHelpers';
+import print from "./utilities/astPrinter";
+import { makeSchema, mergeableTypes } from "./utilities/makeSchema";
+import {
+  isObjectTypeDefinition,
+  isObjectSchemaDefinition
+} from "./utilities/astHelpers";
 
 const _isMergeableTypeDefinition = (def, all) =>
-  isObjectTypeDefinition(def) && (mergeableTypes.includes(def.name.value) || all);
+  isObjectTypeDefinition(def) &&
+  (mergeableTypes.includes(def.name.value) || all);
 
-const _isNonMergeableTypeDefinition = (def, all) => !_isMergeableTypeDefinition(def, all);
+const _isNonMergeableTypeDefinition = (def, all) =>
+  !_isMergeableTypeDefinition(def, all);
 
-const _makeCommentNode = value => ({ kind: 'Comment', value });
+const _makeCommentNode = value => ({ kind: "Comment", value });
 
-const _addCommentsToAST = (nodes, flatten = true) => {
-  const astWithComments = nodes.map(
-    (node) => {
-      const description = getDescription(node, { commentDescriptions: true });
-      if (description) {
-        return [_makeCommentNode(description), node];
-      }
+const _addCommentsToAST = (nodes = [], flatten = true) => {
+  const astWithComments = nodes.map(node => {
+    const description = getDescription(node, { commentDescriptions: true });
+    if (description) {
+      return [_makeCommentNode(description), node];
+    }
 
-      return [node];
-    },
-  );
+    return [node];
+  });
 
   if (flatten) {
     return astWithComments.reduce((a, b) => a.concat(b), []);
@@ -35,49 +38,64 @@ const _addCommentsToAST = (nodes, flatten = true) => {
 
 const _makeRestDefinitions = (defs, all = false) =>
   defs
-    .filter(def => _isNonMergeableTypeDefinition(def, all) && !isObjectSchemaDefinition(def))
-    .map((def) => {
+    .filter(
+      def =>
+        _isNonMergeableTypeDefinition(def, all) &&
+        !isObjectSchemaDefinition(def)
+    )
+    .map(def => {
       if (isObjectTypeDefinition(def)) {
         return {
           ...def,
-          fields: _addCommentsToAST(def.fields),
+          fields: _addCommentsToAST(def.fields)
         };
       }
 
       return def;
     });
 
-const _makeMergedFieldDefinitions = (merged, candidate) => _addCommentsToAST(candidate.fields)
-  .reduce((fields, field) => {
-    const original = merged.fields.find(base => base.name && typeof base.name.value !== 'undefined' &&
-      field.name && typeof field.name.value !== 'undefined' &&
-      base.name.value === field.name.value);
+const _makeMergedFieldDefinitions = (merged, candidate) =>
+  _addCommentsToAST(candidate.fields).reduce((fields, field) => {
+    const original = merged.fields.find(
+      base =>
+        base.name &&
+        typeof base.name.value !== "undefined" &&
+        field.name &&
+        typeof field.name.value !== "undefined" &&
+        base.name.value === field.name.value
+    );
     if (!original) {
       fields.push(field);
-    } else if (field.type.kind === 'NamedType') {
+    } else if (field.type.kind === "NamedType") {
       if (field.type.name.value !== original.type.name.value) {
         throw new Error(
           `Conflicting types for ${merged.name.value}.${field.name.value}: ` +
-          `${field.type.name.value} != ${original.type.name.value}`,
+            `${field.type.name.value} != ${original.type.name.value}`
         );
       }
-    } else if (field.type.kind === 'NonNullType') {
+    } else if (field.type.kind === "NonNullType") {
       if (field.type.type.name) {
-          if (field.type.type.name.value !== original.type.type.name.value) {
-              throw new Error(
-                  `Conflicting types for ${merged.name.value}.${field.name.value}: ` + 
-                  `${field.type.type.name.value} != ${original.type.type.name.value}`
-              );
-          }
+        if (field.type.type.name.value !== original.type.type.name.value) {
+          throw new Error(
+            `Conflicting types for ${merged.name.value}.${field.name.value}: ` +
+              `${field.type.type.name.value} != ${
+                original.type.type.name.value
+              }`
+          );
+        }
       } else if (field.type.type.type.name) {
-          if (field.type.type.type.name.value !== original.type.type.type.name.value) {
-              throw new Error(
-                  `Conflicting types for ${merged.name.value}.${field.name.value}: ` + 
-                  `${field.type.type.type.name.value} != ${original.type.type.type.name.value}`
-              );
-          }
+        if (
+          field.type.type.type.name.value !== original.type.type.type.name.value
+        ) {
+          throw new Error(
+            `Conflicting types for ${merged.name.value}.${field.name.value}: ` +
+              `${field.type.type.type.name.value} != ${
+                original.type.type.type.name.value
+              }`
+          );
+        }
       }
-  }
+    }
 
     // retain directives of both fields.
     if (original) {
@@ -99,8 +117,8 @@ const _makeMergedDefinitions = (defs, all = false) => {
             ...mergableDefs,
             [name]: {
               ...def,
-              fields: _addCommentsToAST(def.fields),
-            },
+              fields: _addCommentsToAST(def.fields)
+            }
           };
         }
 
@@ -108,32 +126,34 @@ const _makeMergedDefinitions = (defs, all = false) => {
           ...mergableDefs,
           [name]: {
             ...mergableDefs[name],
-            fields: _makeMergedFieldDefinitions(mergableDefs[name], def),
-          },
+            fields: _makeMergedFieldDefinitions(mergableDefs[name], def)
+          }
         };
-      }, {
+      },
+      {
         Query: null,
         Mutation: null,
-        Subscription: null,
-      },
+        Subscription: null
+      }
     );
 
-  return Object
-    .values(groupedMergableDefinitions)
-    .reduce((array, def) => (def ? [...array, def] : array), []);
+  return Object.values(groupedMergableDefinitions).reduce(
+    (array, def) => (def ? [...array, def] : array),
+    []
+  );
 };
 
 const _makeDocumentWithDefinitions = definitions => ({
-  kind: 'Document',
-  definitions: definitions instanceof Array ? definitions : [definitions],
+  kind: "Document",
+  definitions: definitions instanceof Array ? definitions : [definitions]
 });
 
 const printDefinitions = defs => print(_makeDocumentWithDefinitions(defs));
 
 const mergeTypes = (types, options = { all: false }) => {
   const allDefs = types
-    .map((type) => {
-      if (typeof type === 'string') {
+    .map(type => {
+      if (typeof type === "string") {
         return parse(type);
       }
       return type;
@@ -142,12 +162,17 @@ const mergeTypes = (types, options = { all: false }) => {
     .reduce((defs, newDef) => [...defs, ...newDef], []);
 
   const mergedDefs = _makeMergedDefinitions(allDefs, options.all);
-  const rest = _addCommentsToAST(_makeRestDefinitions(allDefs, options.all), false)
-    .map(printDefinitions);
+  const rest = _addCommentsToAST(
+    _makeRestDefinitions(allDefs, options.all),
+    false
+  ).map(printDefinitions);
   const schemaDefs = allDefs.filter(isObjectSchemaDefinition);
-  const schema = printDefinitions([makeSchema(mergedDefs, schemaDefs), ...mergedDefs]);
+  const schema = printDefinitions([
+    makeSchema(mergedDefs, schemaDefs),
+    ...mergedDefs
+  ]);
 
-  return [schema, ...rest].join('\n');
+  return [schema, ...rest].join("\n");
 };
 
 export default mergeTypes;
